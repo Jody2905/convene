@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Create an account{% endblock %}
+{% block content %}
+<div class="narrow">
+  <h1>Create an account</h1>
+  <form method="post" class="card stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Full name <input name="name" value="{{ form.get('name', '') }}" autocomplete="name" required maxlength="120"></label>
+    <label>Email <input type="email" name="email" value="{{ form.get('email', '') }}" autocomplete="email" required></label>
+    <label>Password <input type="password" name="password" autocomplete="new-password" required minlength="10">
+      <span class="hint">At least 10 characters.</span></label>
+    <label>Confirm password <input type="password" name="confirm" autocomplete="new-password" required minlength="10"></label>
+    <button class="btn-primary">Create account</button>
+  </form>
+  <p class="center">Already registered? <a href="{{ url_for('login') }}">Log in</a></p>
+</div>
+{% endblock %}

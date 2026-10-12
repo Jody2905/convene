@@ -1,0 +1,18 @@
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+
+{% macro seat_bar(s) %}
+  {% set pct = (100 * s.confirmed / s.capacity) | round | int if s.capacity else 0 %}
+  <div class="seats">
+    <div class="bar"><span class="fill w{{ (pct // 5) * 5 }}"></span></div>
+    <span class="seat-text">
+      {% if s.available %}<strong>{{ s.available }}</strong> of {{ s.capacity }} seats left
+      {% else %}<strong>Full</strong>{% if s.waitlisted %} · {{ s.waitlisted }} waiting{% endif %}{% endif %}
+    </span>
+  </div>
+{% endmacro %}
+
+{% macro status_badge(status) %}<span class="badge badge-{{ status }}">{{ status | capitalize }}</span>{% endmacro %}
+
+{% macro date_tile(d) %}
+  <div class="date-tile"><span class="mon">{{ d.strftime('%b') }}</span><span class="dnum">{{ d.day }}</span><span class="dow">{{ d.strftime('%a') }}</span></div>
+{% endmacro %}

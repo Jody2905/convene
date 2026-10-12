@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, status_badge, date_tile %}
+{% block title %}My tickets{% endblock %}
+{% block content %}
+<h1>My tickets</h1>
+{% if not regs %}
+  <div class="card empty"><p>You haven't registered for anything yet. <a href="{{ url_for('index') }}">Browse events →</a></p></div>
+{% endif %}
+<div class="event-list">
+{% for r in regs %}
+  <div class="event-card static {{ 'faded' if r.status == 'cancelled' or r.event.ends_at < now() }}">
+    {{ date_tile(r.event.starts_at) }}
+    <div class="event-body">
+      <h2><a href="{{ url_for('show_event', event_id=r.event_id) }}">{{ r.event.title }}</a></h2>
+      <p class="muted">{{ r.event.starts_at | hm }}–{{ r.event.ends_at | hm }} · {{ r.event.venue.name }}</p>
+      <p>{{ status_badge(r.status) }}
+        {% if r.status == 'waitlisted' %} <span class="muted">#{{ positions[r.id] }} in line</span>{% endif %}
+        {% if r.event.status == 'cancelled' %} <span class="danger-text">Event cancelled</span>{% endif %}
+        {% if r.checked_in_at %} <span class="muted">Checked in {{ r.checked_in_at | hm }}</span>{% endif %}</p>
+    </div>
+    <div class="event-side stack">
+      {% if r.status == 'confirmed' and r.event.status == 'published' %}
+        <a class="btn btn-primary" href="{{ url_for('ticket', code=r.ticket_code) }}">Ticket</a>
+      {% endif %}
+      {% if r.status != 'cancelled' and r.event.status == 'published' and now() < r.event.starts_at %}
+        <form method="post" action="{{ url_for('cancel_registration', registration_id=r.id) }}">{{ csrf() }}
+          <button class="btn-quiet danger-text">Cancel</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+{% endfor %}
+</div>
+{% endblock %}

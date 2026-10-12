@@ -317,6 +317,47 @@ class ConveneService:
             return CheckInResult(reg, f"Welcome, {reg.user.name}")
 
     # ==================================================================
+    # Lookups for the web pages (read only)
+    # ==================================================================
+
+    def user(self, user_id):
+        with self.Session() as s:
+            return s.get(User, user_id)
+
+    def venues(self):
+        with self.Session() as s:
+            return s.scalars(select(Venue).order_by(Venue.name)).all()
+
+    def organiser_events(self, organiser_id):
+        """Everything this organiser runs, including drafts and cancelled events."""
+        with self.Session() as s:
+            return s.scalars(select(Event).where(Event.organiser_id == organiser_id)
+                             .order_by(Event.starts_at.desc())).all()
+
+    def my_registrations(self, user_id):
+        with self.Session() as s:
+            return s.scalars(select(Registration).join(Event).where(Registration.user_id == user_id)
+                             .order_by(Event.starts_at)).all()
+
+    def registration_for(self, user_id, event_id):
+        with self.Session() as s:
+            return s.scalar(select(Registration).where(Registration.user_id == user_id,
+                                                       Registration.event_id == event_id))
+
+    def registration_by_ticket(self, ticket_code):
+        with self.Session() as s:
+            return s.scalar(select(Registration).where(Registration.ticket_code == ticket_code))
+
+    def check_in_open_events(self):
+        """Published events whose doors are open right now."""
+        now = self.now()
+        with self.Session() as s:
+            return s.scalars(select(Event).where(Event.status == "published",
+                                                 Event.starts_at <= now + CHECK_IN_OPENS,
+                                                 Event.ends_at >= now)
+                             .order_by(Event.starts_at)).all()
+
+    # ==================================================================
     # Audit
     # ==================================================================
 

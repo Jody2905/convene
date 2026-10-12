@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge %}
+{% block title %}Ticket · {{ reg.event.title }}{% endblock %}
+{% block content %}
+<div class="ticket-wrap">
+  <div class="ticket {{ 'ticket-void' if reg.status != 'confirmed' or reg.event.status != 'published' }}">
+    <div class="ticket-top">
+      <p class="eyebrow">Convene ticket</p>
+      <h1>{{ reg.event.title }}</h1>
+      <p>{{ reg.event.starts_at | when }}–{{ reg.event.ends_at | hm }}</p>
+      <p class="muted">{{ reg.event.venue.name }}{% if reg.event.venue.address %}, {{ reg.event.venue.address }}{% endif %}</p>
+    </div>
+    <div class="ticket-bottom">
+      {% if reg.status == 'confirmed' and reg.event.status == 'published' %}
+        <img class="qr" src="{{ url_for('ticket_qr', code=reg.ticket_code) }}" alt="QR code for this ticket" width="220" height="220">
+        <p class="holder">{{ reg.user.name }}</p>
+        <p class="code mono">{{ reg.ticket_code }}</p>
+        {% if reg.checked_in_at %}<p class="ok-text">Checked in at {{ reg.checked_in_at | hm }}</p>
+        {% else %}<p class="muted small">Doors open {{ (reg.event.starts_at - CHECK_IN_OPENS) | hm }}</p>{% endif %}
+      {% else %}
+        <p class="void-text">Not valid for entry</p>
+        <p>{{ status_badge(reg.status) }}{% if reg.event.status == 'cancelled' %} The event was cancelled.{% endif %}</p>
+      {% endif %}
+    </div>
+  </div>
+  <p class="center"><a href="{{ url_for('my_tickets') }}">← My tickets</a></p>
+</div>
+{% endblock %}

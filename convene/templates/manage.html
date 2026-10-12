@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge %}
+{% block title %}My events{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>My events</h1>
+  <a class="btn btn-primary" href="{{ url_for('new_event') }}">+ New event</a>
+</div>
+{% if not events %}
+  <div class="card empty"><p>You haven't created any events yet.</p></div>
+{% else %}
+<table class="table">
+  <thead><tr><th>When</th><th>Event</th><th>Venue</th><th>Status</th><th class="num">Confirmed</th><th class="num">Waitlist</th><th class="num">Checked in</th></tr></thead>
+  <tbody>
+  {% for e in events %}
+    {% set s = seats[e.id] %}
+    <tr>
+      <td class="mono">{{ e.starts_at.strftime('%d %b %Y %H:%M') }}</td>
+      <td><a href="{{ url_for('show_event', event_id=e.id) }}">{{ e.title }}</a></td>
+      <td>{{ e.venue.name }}</td>
+      <td>{{ status_badge(e.status) }}</td>
+      <td class="num">{{ s.confirmed }} / {{ s.capacity }}</td>
+      <td class="num">{{ s.waitlisted }}</td>
+      <td class="num">{{ s.checked_in }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

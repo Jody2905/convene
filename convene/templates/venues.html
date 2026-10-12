@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Venues{% endblock %}
+{% block content %}
+<h1>Venues</h1>
+<div class="columns">
+  <div class="main-col">
+    {% if not venues %}<div class="card empty"><p>No venues yet.</p></div>{% else %}
+    <table class="table">
+      <thead><tr><th>Name</th><th>Address</th><th class="num">Holds</th></tr></thead>
+      <tbody>{% for v in venues %}<tr><td>{{ v.name }}</td><td class="muted">{{ v.address }}</td><td class="num">{{ v.capacity }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% endif %}
+  </div>
+  <aside class="side-col">
+    <form method="post" class="card stack">{{ csrf() }}
+      <h2>Add a venue</h2>
+      <label>Name <input name="name" required maxlength="120"></label>
+      <label>Address <input name="address" maxlength="200"></label>
+      <label>Capacity <input type="number" name="capacity" min="1" required></label>
+      <button class="btn-primary">Add venue</button>
+    </form>
+  </aside>
+</div>
+{% endblock %}

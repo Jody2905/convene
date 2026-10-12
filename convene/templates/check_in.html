@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}Check-in{% endblock %}
+{% block content %}
+<div class="narrow">
+  <h1>Check-in</h1>
+  <p class="muted">Scan the QR code with a barcode scanner, or type the code printed under it.</p>
+
+  {% if result %}
+    <div class="result {{ 'result-ok' if result.ok else 'result-bad' }}" role="status">
+      <p class="result-big">{{ '✓' if result.ok else '✕' }} {{ result.message }}</p>
+      {% if result.ok %}<p>{{ result.event }}</p>{% endif %}
+    </div>
+  {% endif %}
+
+  <form method="post" class="card row">{{ csrf() }}
+    <input name="code" class="mono grow" placeholder="Ticket code" autocomplete="off" autofocus required>
+    <button class="btn-primary">Check in</button>
+  </form>
+
+  <h2 class="section-title">Doors open now</h2>
+  {% if not events %}<p class="muted">No events are open for check-in at the moment.</p>{% endif %}
+  {% for e in events %}
+    {% set s = seats[e.id] %}
+    <div class="card door">
+      <div><strong>{{ e.title }}</strong><br><span class="muted small">{{ e.starts_at | hm }}–{{ e.ends_at | hm }} · {{ e.venue.name }}</span></div>
+      <div class="door-count"><strong>{{ s.checked_in }}</strong> / {{ s.confirmed }}<br><span class="muted small">arrived</span></div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, seat_bar, date_tile, status_badge %}
+{% block title %}{{ event.title }}{% endblock %}
+{% block content %}
+
+<a class="back" href="{{ url_for('manage') if is_owner else url_for('index') }}">← {{ 'My events' if is_owner else 'All events' }}</a>
+
+<div class="event-head">
+  {{ date_tile(event.starts_at) }}
+  <div class="grow">
+    <h1>{{ event.title }}</h1>
+    <p class="muted">{{ event.starts_at | when }}–{{ event.ends_at | hm }} · {{ event.venue.name }}{% if event.venue.address %}, {{ event.venue.address }}{% endif %}</p>
+    <p class="muted small">Organised by {{ event.organiser.name }} · registration closes {{ event.registration_closes_at | when }}</p>
+  </div>
+  {% if event.status != 'published' %}{{ status_badge(event.status) }}{% endif %}
+</div>
+
+{% if event.status == 'cancelled' %}
+  <div class="flash flash-error"><strong>This event was cancelled:</strong> {{ event.cancel_reason }}</div>
+{% endif %}
+
+<div class="columns">
+  <div class="main-col">
+    {% if event.description %}<section class="card"><p class="prewrap">{{ event.description }}</p></section>{% endif %}
+
+    {# ---- The attendee's own place ---- #}
+    {% if g.user.role == 'attendee' and event.status == 'published' %}
+    <section class="card my-place">
+      {% if reg and reg.status == 'confirmed' %}
+        <h2>You're confirmed {{ status_badge('confirmed') }}</h2>
+        <p>Show your ticket at the door. It's also under <a href="{{ url_for('my_tickets') }}">My tickets</a>.</p>
+        <div class="row">
+          <a class="btn btn-primary" href="{{ url_for('ticket', code=reg.ticket_code) }}">View ticket</a>
+          {% if now() < event.starts_at %}{{ cancel_form(reg) }}{% endif %}
+        </div>
+      {% elif reg and reg.status == 'waitlisted' %}
+        <h2>You're on the waitlist {{ status_badge('waitlisted') }}</h2>
+        <p>You're <strong>#{{ position }}</strong> in line. If someone cancels, you'll be confirmed automatically
+           and your ticket will appear here.</p>
+        {% if now() < event.starts_at %}{{ cancel_form(reg) }}{% endif %}
+      {% elif now() < event.registration_closes_at %}
+        <h2>{{ 'Join the waitlist' if seats.available == 0 else 'Register' }}</h2>
+        <p>{% if seats.available == 0 %}The event is full. Join the waitlist and you'll be confirmed in order if places free up.
+           {% else %}Free. Your place is confirmed straight away.{% endif %}</p>
+        <form method="post" action="{{ url_for('register', event_id=event.id) }}">{{ csrf() }}
+          <button class="btn-primary">{{ 'Join waitlist' if seats.available == 0 else 'Register' }}</button>
+        </form>
+      {% else %}
+        <h2>Registration has closed</h2>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {# ---- Organiser: attendee list ---- #}
+    {% if is_owner %}
+    <section class="card">
+      <h2>People ({{ attendees | rejectattr('status', 'equalto', 'cancelled') | list | length }})</h2>
+      {% if not attendees %}<p class="muted">Nobody has registered yet.</p>{% else %}
+      <table class="table">
+        <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Checked in</th><th></th></tr></thead>
+        <tbody>
+        {% set ns = namespace(pos=0) %}
+        {% for r in attendees %}
+          {% if r.status == 'waitlisted' %}{% set ns.pos = ns.pos + 1 %}{% endif %}
+          <tr class="{{ 'muted-row' if r.status == 'cancelled' }}">
+            <td>{{ r.user.name }}</td>
+            <td class="muted">{{ r.user.email }}</td>
+            <td>{{ status_badge(r.status) }}{% if r.status == 'waitlisted' %} <span class="muted">#{{ ns.pos }}</span>{% endif %}</td>
+            <td>{{ r.checked_in_at | hm if r.checked_in_at else '' }}</td>
+            <td>{% if r.status != 'cancelled' and now() < event.starts_at %}{{ cancel_form(r, small=True) }}{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </section>
+    {% endif %}
+  </div>
+
+  <aside class="side-col">
+    <section class="card">
+      <h2>Seats</h2>
+      {{ seat_bar(seats) }}
+      <dl class="stats">
+        <div><dt>Confirmed</dt><dd>{{ seats.confirmed }}</dd></div>
+        <div><dt>Waitlist</dt><dd>{{ seats.waitlisted }}</dd></div>
+        <div><dt>Checked in</dt><dd>{{ seats.checked_in }}</dd></div>
+      </dl>
+    </section>
+
+    {% if is_owner and event.status != 'cancelled' %}
+    <section class="card stack">
+      <h2>Manage</h2>
+      {% if event.status == 'draft' %}
+        <p class="small muted">Nobody can see or register for a draft.</p>
+        <form method="post" action="{{ url_for('publish', event_id=event.id) }}">{{ csrf() }}
+          <button class="btn-primary full">Publish and open registration</button>
+        </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('change_capacity', event_id=event.id) }}" class="stack">{{ csrf() }}
+        <label>Capacity <span class="hint">venue holds {{ event.venue.capacity }}</span>
+          <input type="number" name="capacity" value="{{ event.capacity }}" min="1" max="{{ event.venue.capacity }}" required></label>
+        <button class="btn">Update capacity</button>
+      </form>
+      <details>
+        <summary>Cancel this event</summary>
+        <form method="post" action="{{ url_for('cancel_event', event_id=event.id) }}" class="stack">{{ csrf() }}
+          <input name="reason" placeholder="Reason, shown to attendees" required minlength="5">
+          <button class="btn-danger">Cancel event</button>
+        </form>
+      </details>
+    </section>
+    {% endif %}
+
+    {% if is_owner %}
+    <section class="card">
+      <h2>Activity</h2>
+      <ul class="audit">
+      {% for a in audit | reverse %}
+        <li><span class="mono muted">{{ a.at.strftime('%d %b %H:%M') }}</span> {{ a.action.replace('_', ' ') }}{% if a.detail %}: {{ a.detail }}{% endif %}</li>
+      {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}
+
+{% macro cancel_form(r, small=False) %}
+  <form method="post" action="{{ url_for('cancel_registration', registration_id=r.id) }}" class="inline">{{ csrf() }}
+    <input type="hidden" name="back" value="event">
+    <button class="{{ 'btn-quiet danger-text' if small else 'btn' }}">{{ 'Remove' if small else 'Cancel my place' }}</button>
+  </form>
+{% endmacro %}

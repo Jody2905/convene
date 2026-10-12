@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}New event{% endblock %}
+{% block content %}
+<div class="narrow">
+  <a class="back" href="{{ url_for('manage') }}">← My events</a>
+  <h1>New event</h1>
+  {% if not venues %}
+    <div class="card"><p>Add a venue first. <a href="{{ url_for('venues') }}">Go to venues →</a></p></div>
+  {% else %}
+  <form method="post" class="card stack">{{ csrf() }}
+    <label>Title <input name="title" value="{{ form.get('title', '') }}" required maxlength="150"></label>
+    <label>Description <textarea name="description" rows="4" maxlength="4000">{{ form.get('description', '') }}</textarea></label>
+    <label>Venue
+      <select name="venue_id" required>
+        {% for v in venues %}
+          <option value="{{ v.id }}" {% if form.get('venue_id') == v.id|string %}selected{% endif %}>{{ v.name }} (holds {{ v.capacity }})</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="three-col">
+      <label>Date <input type="date" name="date" value="{{ form.get('date', '') }}" required></label>
+      <label>Starts <input type="time" name="start" value="{{ form.get('start', '') }}" required></label>
+      <label>Ends <input type="time" name="end" value="{{ form.get('end', '') }}" required></label>
+    </div>
+    <div class="two-col">
+      <label>Capacity <span class="hint">blank = the whole venue</span>
+        <input type="number" name="capacity" min="1" value="{{ form.get('capacity', '') }}"></label>
+      <label>Registration closes <span class="hint">blank = when it starts</span>
+        <input type="datetime-local" name="closes" value="{{ form.get('closes', '') }}"></label>
+    </div>
+    <button class="btn-primary">Save as draft</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
