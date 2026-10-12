@@ -446,7 +446,9 @@ class ConveneService:
     def _get(self, s, model, obj_id, lock=False):
         q = select(model).where(model.id == obj_id)
         if lock:
-            q = q.with_for_update()      # PostgreSQL row lock; SQLite is already serialised (see db.py)
+            # Lock just this row (of=model): PostgreSQL refuses to lock the joined venue/organiser rows.
+            # SQLite has no row locks; it is serialised by BEGIN IMMEDIATE instead (see db.py).
+            q = q.with_for_update(of=model)
         obj = s.scalar(q)
         if obj is None:
             raise NotFound(f"{model.__name__} not found")

@@ -1,0 +1,2 @@
+# Only needed to use PostgreSQL instead of the built-in SQLite file
+psycopg[binary]>=3.2,<4

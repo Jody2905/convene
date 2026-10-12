@@ -6,6 +6,7 @@
 """
 
 import argparse
+import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -19,11 +20,13 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="convene")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("demo", help="walk through the booking rules step by step")
+    default_db = os.environ.get("CONVENE_DATABASE_URL", "convene.db")
+    db_help = "SQLite file or database URL (default: $CONVENE_DATABASE_URL or convene.db)"
     i = sub.add_parser("init-demo", help="create a database with demo accounts and events")
-    i.add_argument("--db", default="convene.db")
-    i.add_argument("--reset", action="store_true", help="delete an existing database first")
+    i.add_argument("--db", default=default_db, help=db_help)
+    i.add_argument("--reset", action="store_true", help="delete existing data first")
     s = sub.add_parser("serve", help="start the web app (on this computer only)")
-    s.add_argument("--db", default="convene.db")
+    s.add_argument("--db", default=default_db, help=db_help)
     s.add_argument("--port", type=int, default=5000)
     args = parser.parse_args(argv)
 
@@ -31,34 +34,48 @@ def main(argv=None):
         demo.run()
         return 0
     if args.command == "init-demo":
-        return init_demo(Path(args.db), args.reset)
+        return init_demo(args.db, args.reset)
     if args.command == "serve":
-        if not Path(args.db).exists():
+        url = _as_url(args.db)
+        if url.startswith("sqlite:///") and not Path(url[len("sqlite:///"):]).exists():
             print(f"No database at {args.db}. Run:  python -m convene init-demo", file=sys.stderr)
             return 1
         from .web import create_app
-        print(f"Convene running at http://127.0.0.1:{args.port}  (Ctrl+C to stop)")
-        create_app(f"sqlite:///{args.db}").run(host="127.0.0.1", port=args.port, debug=False)
+        print(f"Convene running at http://127.0.0.1:{args.port} using {_describe(url)}  (Ctrl+C to stop)")
+        create_app(url).run(host="127.0.0.1", port=args.port, debug=False)
     return 0
 
 
-def init_demo(db_path, reset, now=None):
+def init_demo(db, reset, now=None):
     """Demo accounts, venues, three finished events (for the reports) and upcoming events."""
     import random
 
     from .db import init_db, session_factory
     from .service import ConveneService
 
-    if db_path.exists():
+    from sqlalchemy import func, inspect, select
+
+    from .db import make_engine
+    from .models import Base, User
+
+    url = _as_url(db)
+    engine = make_engine(url)
+    has_data = False
+    if inspect(engine).has_table("users"):
+        with engine.connect() as conn:
+            has_data = conn.execute(select(func.count()).select_from(User)).scalar() > 0
+    if has_data:
         if not reset:
-            print(f"{db_path} already exists. Use --reset to start again (this deletes it).", file=sys.stderr)
+            engine.dispose()
+            print(f"{_describe(url)} already has data. Use --reset to start again (this deletes it).",
+                  file=sys.stderr)
             return 1
-        for suffix in ("", "-wal", "-shm"):
-            Path(f"{db_path}{suffix}").unlink(missing_ok=True)
+        Base.metadata.drop_all(engine)
+    engine.dispose()
 
     now = (now or datetime.now()).replace(second=0, microsecond=0)
     clock = _DemoClock(now - timedelta(days=60))           # start in the past to build some history
-    engine = init_db(f"sqlite:///{db_path}")
+    engine = init_db(url)
     svc = ConveneService(session_factory(engine), clock=clock)
     rng = random.Random(7)                                  # same demo every time
 
@@ -132,7 +149,7 @@ def init_demo(db_path, reset, now=None):
                      description="Draft: date to be confirmed.")
     engine.dispose()
 
-    print(f"Created {db_path}\n")
+    print(f"Created the demo in {_describe(url)}\n")
     print(f"Demo logins (password for all: {DEMO_PASSWORD})")
     print("  andrea@convene.test    organiser   creates events, sees reports")
     print("  shane@convene.test     door staff  checks people in")
@@ -142,6 +159,20 @@ def init_demo(db_path, reset, now=None):
     print("Three finished events are included, so the Reports page has figures to show.")
     print("\nStart the app with:  python -m convene serve")
     return 0
+
+
+def _as_url(db):
+    """'convene.db' -> 'sqlite:///convene.db'; URLs are passed through."""
+    text = str(db)
+    return text if "://" in text else f"sqlite:///{text}"
+
+
+def _describe(url):
+    """For messages: the file name, or the database without its password."""
+    if url.startswith("sqlite:///"):
+        return url[len("sqlite:///"):]
+    from sqlalchemy.engine import make_url
+    return make_url(url).render_as_string(hide_password=True)
 
 
 class _DemoClock:

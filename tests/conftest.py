@@ -1,3 +1,4 @@
+import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -6,7 +7,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from convene.db import init_db, session_factory  # noqa: E402
+from convene.db import init_db, make_engine, session_factory  # noqa: E402
+from convene.models import Base  # noqa: E402
 from convene.service import ConveneService  # noqa: E402
 
 PASSWORD = "correct-horse-battery"
@@ -34,9 +36,25 @@ def clock():
     return Clock()
 
 
+# Tests use a throwaway SQLite file by default. To run the same tests against PostgreSQL:
+#   set CONVENE_TEST_DATABASE_URL=postgresql+psycopg://user:password@localhost/convene_test
+TEST_DATABASE_URL = os.environ.get("CONVENE_TEST_DATABASE_URL")
+
+
 @pytest.fixture
-def engine(tmp_path):
-    engine = init_db(f"sqlite:///{tmp_path / 'test.db'}")
+def db_url(tmp_path):
+    """A URL for an empty database."""
+    if not TEST_DATABASE_URL:
+        return f"sqlite:///{tmp_path / 'test.db'}"
+    engine = make_engine(TEST_DATABASE_URL)
+    Base.metadata.drop_all(engine)          # start every test from empty tables
+    engine.dispose()
+    return TEST_DATABASE_URL
+
+
+@pytest.fixture
+def engine(db_url):
+    engine = init_db(db_url)
     yield engine
     engine.dispose()
 

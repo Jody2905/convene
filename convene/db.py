@@ -1,6 +1,9 @@
 """Database connection.
 
-SQLite by default (one file, nothing to install). Two settings matter:
+SQLite by default (one file, nothing to install), or PostgreSQL by giving a
+URL such as  postgresql+psycopg://user:password@localhost/convene.
+
+For SQLite two settings matter:
 
 * Foreign keys are switched on (SQLite leaves them off unless asked).
 * Every transaction starts with BEGIN IMMEDIATE, which takes the write lock
@@ -32,7 +35,8 @@ def make_engine(url="sqlite:///convene.db"):
         def _begin_immediate(conn):
             conn.exec_driver_sql("BEGIN IMMEDIATE")
         return engine
-    return create_engine(url)
+    # PostgreSQL (or another server database): check pooled connections are alive before use
+    return create_engine(url, pool_pre_ping=True)
 
 
 def init_db(url="sqlite:///convene.db"):

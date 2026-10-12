@@ -15,8 +15,8 @@ def clock():
 
 
 @pytest.fixture
-def app(tmp_path, clock):
-    app = create_app(f"sqlite:///{tmp_path / 'web.db'}", secret_key="test-secret", clock=clock)
+def app(db_url, clock):
+    app = create_app(db_url, secret_key="test-secret", clock=clock)
     app.config["TESTING"] = True
     svc = app.extensions["convene"]
     org = svc.create_user("andrea@convene.test", "Andrea Cupid", "organiser", PASSWORD).id
@@ -300,12 +300,11 @@ def test_names_and_text_are_escaped(app, svc):
 
 # ---- The demo database ---------------------------------------------------------------------
 
-def test_init_demo_builds_a_usable_database(tmp_path):
+def test_init_demo_builds_a_usable_database(db_url):
     from datetime import datetime
-    db = tmp_path / "demo.db"
-    assert init_demo(db, reset=False, now=datetime(2026, 11, 2, 14, 25)) == 0
-    assert init_demo(db, reset=False) == 1                      # refuses to overwrite
-    app = create_app(f"sqlite:///{db}", secret_key="x", clock=lambda: datetime(2026, 11, 2, 14, 30))
+    assert init_demo(db_url, reset=False, now=datetime(2026, 11, 2, 14, 25)) == 0
+    assert init_demo(db_url, reset=False) == 1                  # refuses to overwrite
+    app = create_app(db_url, secret_key="x", clock=lambda: datetime(2026, 11, 2, 14, 30))
     try:
         shane = client_for(app, "shane@convene.test", DEMO_PASSWORD)
         assert "Phishing Awareness Workshop" in text(shane.get("/check-in"))   # doors already open
