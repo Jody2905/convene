@@ -23,7 +23,7 @@
   {% for e in events %}
     {% set s = seats[e.id] %}
     <div class="card door">
-      <div><strong>{{ e.title }}</strong><br><span class="muted small">{{ e.starts_at | hm }}–{{ e.ends_at | hm }} · {{ e.venue.name }}</span></div>
+      <div><strong>{{ e.title }}</strong><br><span class="muted small">{{ e.starts_at | hm }}–{{ e.ends_at | endtime }} · {{ e.venue.name }}</span></div>
       <div class="door-count"><strong>{{ s.checked_in }}</strong> / {{ s.confirmed }}<br><span class="muted small">arrived</span></div>
     </div>
   {% endfor %}

@@ -17,7 +17,7 @@
     {{ date_tile(e.starts_at) }}
     <div class="event-body">
       <h2>{{ e.title }}</h2>
-      <p class="muted">{{ e.starts_at | hm }}–{{ e.ends_at | hm }} · {{ e.venue.name }}</p>
+      <p class="muted">{{ e.starts_at | hm }}–{{ e.ends_at | endtime }} · {{ e.venue.name }}</p>
       {{ seat_bar(seats[e.id]) }}
     </div>
     <div class="event-side">

@@ -313,3 +313,59 @@ def test_init_demo_builds_a_usable_database(tmp_path):
         assert "Budget Town Hall" in html and "Year-end" not in html          # the draft stays hidden
     finally:
         app.extensions["convene_engine"].dispose()
+
+
+# ---- Reports and downloads ---------------------------------------------------------------
+
+def test_reports_only_for_the_events_organiser(app):
+    event = app.config["EVENT"]
+    assert client_for(app, "andrea@convene.test").get(f"/events/{event}/report").status_code == 200
+    assert client_for(app, "devon@convene.test").get(f"/events/{event}/report").status_code == 404
+    assert client_for(app, "kerry@example.test").get(f"/events/{event}/report").status_code == 403
+    assert client_for(app, "devon@convene.test").get(f"/events/{event}/attendees.csv").status_code == 404
+    assert client_for(app, "andrea@convene.test").get(f"/events/{event}/attendees.pdf").status_code == 404
+
+
+def test_report_page_and_downloads(app, svc, clock):
+    event = app.config["EVENT"]
+    post(client_for(app, "kerry@example.test"), f"/events/{event}/register")
+    code = svc.registration_for(svc.authenticate("kerry@example.test", PASSWORD).id, event).ticket_code
+    clock.set(at(10, 9, 40))
+    post(client_for(app, "shane@convene.test"), "/check-in", code=code)
+    clock.set(at(10, 12, 30))
+    andrea = client_for(app, "andrea@convene.test")
+    html = text(andrea.get(f"/events/{event}/report"))
+    assert "When people arrived" in html and "09:30–09:45: 1 arrival" in html and "100%" in html
+
+    csv_file = andrea.get(f"/events/{event}/attendees.csv")
+    assert csv_file.mimetype == "text/csv" and "Kerry" in csv_file.get_data(as_text=True)
+    assert 'filename="attendees-2026-11-10-phishing-awareness-workshop.csv"' in csv_file.headers["Content-Disposition"]
+    xlsx = andrea.get(f"/events/{event}/attendees.xlsx")
+    assert xlsx.data[:2] == b"PK"
+    assert "exported: attendee list (csv, 1 people)" in text(andrea.get(f"/events/{event}"))   # downloads are logged
+
+    overview = andrea.get("/reports")
+    assert "Phishing Awareness Workshop" in text(overview) and "Turned away" in text(overview)
+    assert andrea.get("/reports.xlsx").data[:2] == b"PK"
+
+
+def test_event_ending_at_midnight_says_midnight(app, svc):
+    org = svc.authenticate("andrea@convene.test", PASSWORD).id
+    late = svc.create_event(org, app.config["ROOM"], "Late show", at(20, 22), at(21, 0))
+    svc.publish(org, late.id)
+    assert "22:00–midnight" in text(client_for(app, "kerry@example.test").get("/"))
+
+
+def test_a_single_arrival_among_many_still_shows_a_bar(app, svc):
+    """1 arrival next to a peak of 50 is 2% tall, which would round to an invisible bar."""
+    from flask import g, render_template
+
+    from convene.reports import ARRIVAL_STEP, EventReport
+    event = svc.event(app.config["EVENT"])
+    report = EventReport(event, 60, 51, 51, 0, 0, 0, True,
+                         arrivals=[(at(10, 9), 50), (at(10, 9, 15), 1), (at(10, 9, 30), 0)])
+    with app.test_request_context():
+        g.user = svc.authenticate("andrea@convene.test", PASSWORD)
+        html = render_template("event_report.html", r=report, event=event, peak=50, step=ARRIVAL_STEP)
+    bars = re.findall(r'class="col (h\d+)"', html)
+    assert bars == ["h100", "h5", "h0"]

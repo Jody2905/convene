@@ -6,10 +6,10 @@
 <div class="columns">
   <div class="main-col">
     {% if not venues %}<div class="card empty"><p>No venues yet.</p></div>{% else %}
-    <table class="table">
+    <div class="scroll-x"><table class="table">
       <thead><tr><th>Name</th><th>Address</th><th class="num">Holds</th></tr></thead>
       <tbody>{% for v in venues %}<tr><td>{{ v.name }}</td><td class="muted">{{ v.address }}</td><td class="num">{{ v.capacity }}</td></tr>{% endfor %}</tbody>
-    </table>
+    </table></div>
     {% endif %}
   </div>
   <aside class="side-col">

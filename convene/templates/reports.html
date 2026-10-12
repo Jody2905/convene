@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Reports</h1>
+    <p class="muted">All the events you've published. Rates count finished events only.</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('report_overview_xlsx') }}">Download (Excel)</a>
+</div>
+
+{% if not ov.reports %}
+  <div class="card empty"><p>Publish an event and its figures will appear here.</p></div>
+{% else %}
+<div class="tiles">
+  <div class="tile"><span class="tile-label">Finished events</span><span class="tile-value">{{ ov.finished | length }}</span><span class="tile-sub">{{ ov.reports | length - ov.finished | length }} upcoming or cancelled</span></div>
+  <div class="tile"><span class="tile-label">People checked in</span><span class="tile-value">{{ ov.total_checked_in }}</span><span class="tile-sub">of {{ ov.total_confirmed }} confirmed</span></div>
+  <div class="tile"><span class="tile-label">Attendance</span><span class="tile-value">{{ ov.attendance_rate | pct }}</span><span class="tile-sub">confirmed people who came</span></div>
+  <div class="tile"><span class="tile-label">Turned away</span><span class="tile-value">{{ ov.turned_away }}</span><span class="tile-sub">left on a waitlist at finished events</span></div>
+</div>
+
+<section class="card">
+  <h2>Events</h2>
+  <div class="scroll-x"><table class="table">
+    <thead><tr><th>Date</th><th>Event</th><th class="meter-col">Seats filled</th><th class="meter-col">Attendance</th><th class="num">No-shows</th><th class="num">Still waiting</th></tr></thead>
+    <tbody>
+    {% for r in ov.reports %}
+      <tr class="{{ 'muted-row' if r.event.status == 'cancelled' }}">
+        <td class="mono">{{ r.event.starts_at.strftime('%d %b %Y') }}</td>
+        <td><a href="{{ url_for('event_report', event_id=r.event.id) }}">{{ r.event.title }}</a>
+          <br><span class="muted small">{{ r.event.venue.name }}{% if r.event.status == 'cancelled' %} · cancelled{% elif not r.finished %} · upcoming{% endif %}</span></td>
+        <td>{{ meter(r.fill_rate, r.confirmed ~ ' / ' ~ r.capacity) }}</td>
+        <td>{% if r.finished %}{{ meter(r.attendance_rate, r.checked_in ~ ' came') }}{% else %}<span class="muted">–</span>{% endif %}</td>
+        <td class="num">{{ r.no_shows if r.no_shows is not none else '–' }}</td>
+        <td class="num">{{ r.waitlisted or '–' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+<div class="two-col">
+  <section class="card">
+    <h2>Needed more seats</h2>
+    <p class="hint">Events with people still on the waitlist: candidates for a bigger room or a repeat session.</p>
+    {% if not ov.unmet_demand %}<p class="muted">None. Every event had room for everyone who asked.</p>{% else %}
+    <table class="table compact">
+      <tbody>{% for r in ov.unmet_demand %}
+        <tr><td>{{ r.event.title }}<br><span class="muted small">{{ r.event.starts_at.strftime('%d %b') }} · {{ r.capacity }} seats{% if not r.finished %} · upcoming{% endif %}</span></td>
+            <td class="num"><strong>{{ r.waitlisted }}</strong> waiting</td></tr>
+      {% endfor %}</tbody>
+    </table>
+    {% endif %}
+  </section>
+  <section class="card">
+    <h2>No-shows by venue</h2>
+    <p class="hint">Finished events only.</p>
+    {% if not ov.venues %}<p class="muted">No finished events yet.</p>{% else %}
+    <table class="table compact">
+      <thead><tr><th>Venue</th><th class="num">Events</th><th class="num">No-show rate</th></tr></thead>
+      <tbody>{% for v in ov.venues %}
+        <tr><td>{{ v.name }}</td><td class="num">{{ v.events }}</td><td class="num">{{ v.no_show_rate | pct }}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+    {% endif %}
+  </section>
+</div>
+{% endif %}
+{% endblock %}
+
+{% macro meter(rate, label) %}
+  {% set w = ((100 * rate) / 5) | round | int * 5 if rate is not none else 0 %}
+  <div class="meter" title="{{ label }} ({{ rate | pct }})"><span class="bar"><span class="fill w{{ [w, 100] | min }}"></span></span><span class="meter-text">{{ rate | pct }}</span></div>
+{% endmacro %}

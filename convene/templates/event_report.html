@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Report · {{ event.title }}{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_for('show_event', event_id=event.id) }}">← {{ event.title }}</a>
+<div class="page-head">
+  <div>
+    <h1>Attendance report</h1>
+    <p class="muted">{{ event.title }} · {{ event.starts_at | when }}–{{ event.ends_at | endtime }} · {{ event.venue.name }}</p>
+  </div>
+  <div class="row">
+    <a class="btn" href="{{ url_for('attendee_export', event_id=event.id, fmt='csv') }}">Attendees (CSV)</a>
+    <a class="btn btn-primary" href="{{ url_for('attendee_export', event_id=event.id, fmt='xlsx') }}">Attendees + sign-in sheet (Excel)</a>
+  </div>
+</div>
+
+{% if event.status == 'cancelled' %}
+  <div class="flash flash-error">This event was cancelled: {{ event.cancel_reason }}</div>
+{% elif not r.finished %}
+  <div class="flash flash-info">The event hasn't finished yet, so no-shows aren't counted. Figures are live.</div>
+{% endif %}
+
+<div class="tiles">
+  <div class="tile"><span class="tile-label">Confirmed</span><span class="tile-value">{{ r.confirmed }}</span><span class="tile-sub">of {{ r.capacity }} seats · {{ r.fill_rate | pct }} full</span></div>
+  <div class="tile"><span class="tile-label">Checked in</span><span class="tile-value">{{ r.checked_in }}</span><span class="tile-sub">{{ r.attendance_rate | pct }} of confirmed</span></div>
+  <div class="tile"><span class="tile-label">No-shows</span><span class="tile-value">{{ r.no_shows if r.no_shows is not none else '–' }}</span><span class="tile-sub">{{ 'confirmed but never arrived' if r.finished else 'counted after the event' }}</span></div>
+  <div class="tile"><span class="tile-label">Still waiting</span><span class="tile-value">{{ r.waitlisted }}</span><span class="tile-sub">{{ r.promoted }} got a seat from the waitlist · {{ r.cancelled }} cancelled</span></div>
+</div>
+
+<section class="card">
+  <h2>When people arrived</h2>
+  <p class="hint">Check-ins per 15 minutes, from doors opening. Hover a bar for the exact count.</p>
+  {% if not r.arrivals %}
+    <p class="muted">Nobody has checked in yet.</p>
+  {% else %}
+  <div class="chart" role="img" aria-label="Check-ins per 15 minutes; the busiest slot had {{ peak }}">
+    <div class="cols">
+      {% for start, n in r.arrivals %}
+        {% set h = ((100 * n / peak) / 5) | round | int * 5 if peak else 0 %}
+        {% set h = [h, 5] | max if n else 0 %}{# one arrival must still show as a bar #}
+        <div class="col-slot" title="{{ start | hm }}–{{ (start + step) | hm }}: {{ n }} arrival{{ '' if n == 1 else 's' }}">
+          <span class="col h{{ h }}">{% if n == peak %}<span class="col-label">{{ n }}</span>{% endif %}</span>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="col-axis">
+      {% for start, n in r.arrivals %}
+        <span class="tick">{% if start == event.starts_at %}<strong>Start</strong>{% elif loop.first or start.minute == 0 %}{{ start | hm }}{% endif %}</span>
+      {% endfor %}
+    </div>
+  </div>
+  <details class="table-view">
+    <summary>Show as a table</summary>
+    <table class="table compact">
+      <thead><tr><th>From</th><th class="num">Arrivals</th></tr></thead>
+      <tbody>{% for start, n in r.arrivals %}<tr><td class="mono">{{ start | hm }}</td><td class="num">{{ n }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </details>
+  {% endif %}
+</section>
+{% endblock %}

@@ -12,7 +12,7 @@
     {{ date_tile(r.event.starts_at) }}
     <div class="event-body">
       <h2><a href="{{ url_for('show_event', event_id=r.event_id) }}">{{ r.event.title }}</a></h2>
-      <p class="muted">{{ r.event.starts_at | hm }}–{{ r.event.ends_at | hm }} · {{ r.event.venue.name }}</p>
+      <p class="muted">{{ r.event.starts_at | hm }}–{{ r.event.ends_at | endtime }} · {{ r.event.venue.name }}</p>
       <p>{{ status_badge(r.status) }}
         {% if r.status == 'waitlisted' %} <span class="muted">#{{ positions[r.id] }} in line</span>{% endif %}
         {% if r.event.status == 'cancelled' %} <span class="danger-text">Event cancelled</span>{% endif %}

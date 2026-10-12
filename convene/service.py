@@ -357,6 +357,11 @@ class ConveneService:
                                                  Event.ends_at >= now)
                              .order_by(Event.starts_at)).all()
 
+    def record_export(self, user_id, event_id, what):
+        """Downloads of personal data are logged: who took a copy, and when."""
+        with self.Session.begin() as s:
+            self._audit(s, user_id, event_id, "exported", what)
+
     # ==================================================================
     # Audit
     # ==================================================================

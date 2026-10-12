@@ -2,7 +2,7 @@
 
 Event registration with real-world booking rules: capacity limits, a first-come waitlist that promotes people automatically, no double-booked venues, registration deadlines and check-in at the door.
 
-> Work in progress. The rules, database and web app are done; reports and full documentation follow.
+> Work in progress. The rules, database, web app and reports are done; full documentation follows.
 
 ## Try it
 

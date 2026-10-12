@@ -23,6 +23,7 @@ import qrcode
 import qrcode.image.svg
 from flask import Flask, Response, abort, flash, g, redirect, render_template, request, session, url_for
 
+from . import exports, reports
 from .db import init_db, session_factory
 from .service import CHECK_IN_OPENS, ConveneService, NotFound, RuleViolation
 
@@ -44,7 +45,8 @@ def create_app(db_url="sqlite:///convene.db", secret_key=None, clock=None):
     app.extensions["convene_engine"] = engine
 
     app.jinja_env.globals.update(csrf_token=_csrf_token, now=svc.now, CHECK_IN_OPENS=CHECK_IN_OPENS)
-    app.jinja_env.filters.update(when=_when, day=_day, hm=lambda d: d.strftime("%H:%M") if d else "")
+    app.jinja_env.filters.update(when=_when, day=_day, hm=lambda d: d.strftime("%H:%M") if d else "",
+                                 endtime=_endtime, pct=_pct)
 
     # ---- Every request -------------------------------------------------------
 
@@ -266,6 +268,49 @@ def create_app(db_url="sqlite:///convene.db", secret_key=None, clock=None):
                            "Venue added.", url_for("venues"))
         return render_template("venues.html", venues=svc.venues())
 
+    # ---- Reports and downloads (organisers, their own events only) ----------------------
+
+    def own_event(event_id):
+        event = _found(svc.event, event_id)
+        if event.organiser_id != g.user.id:
+            abort(404)
+        return event
+
+    @app.get("/reports")
+    @login_required("organiser")
+    def report_overview():
+        return render_template("reports.html", ov=reports.overview(svc, g.user.id))
+
+    @app.get("/reports.xlsx")
+    @login_required("organiser")
+    def report_overview_xlsx():
+        data = exports.overview_xlsx(g.user.name, reports.overview(svc, g.user.id))
+        return _download(data, f"convene-attendance-{svc.now():%Y-%m-%d}.xlsx", XLSX)
+
+    @app.get("/events/<int:event_id>/report")
+    @login_required("organiser")
+    def event_report(event_id):
+        own_event(event_id)
+        report = reports.event_report(svc, event_id)
+        peak = max((n for _, n in report.arrivals), default=0)
+        return render_template("event_report.html", r=report, event=report.event, peak=peak,
+                               step=reports.ARRIVAL_STEP)
+
+    @app.get("/events/<int:event_id>/attendees.<fmt>")
+    @login_required("organiser")
+    def attendee_export(event_id, fmt):
+        event = own_event(event_id)
+        people = [r for r in svc.attendees(event_id) if r.status != "cancelled"]
+        name = f"attendees-{event.starts_at:%Y-%m-%d}-{_slug(event.title)}"
+        if fmt == "csv":
+            data, mimetype = exports.attendees_csv(people, svc.waitlist_position).encode("utf-8"), "text/csv"
+        elif fmt == "xlsx":
+            data, mimetype = exports.attendees_xlsx(event, people, svc.waitlist_position), XLSX
+        else:
+            abort(404)
+        svc.record_export(g.user.id, event_id, f"attendee list ({fmt}, {len(people)} people)")
+        return _download(data, f"{name}.{fmt}", mimetype)
+
     # ---- Door staff -----------------------------------------------------------------
 
     @app.route("/check-in", methods=["GET", "POST"])
@@ -337,6 +382,31 @@ def _parse_datetime(value):
         return datetime.fromisoformat(value)
     except ValueError:
         raise RuleViolation("Registration closing time isn't a valid date and time") from None
+
+
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _download(data, filename, mimetype):
+    return Response(data, mimetype=mimetype,
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+def _slug(text):
+    """'Budget Town Hall!' -> 'budget-town-hall' (safe in a file name)."""
+    words = "".join(c.lower() if c.isalnum() else " " for c in text).split()
+    return "-".join(words)[:40] or "event"
+
+
+def _endtime(d):
+    """An event ending at 00:00 ends at midnight, which reads better than '00:00'."""
+    if d is None:
+        return ""
+    return "midnight" if (d.hour, d.minute) == (0, 0) else d.strftime("%H:%M")
+
+
+def _pct(x):
+    return "–" if x is None else f"{round(100 * x)}%"
 
 
 def _when(d):

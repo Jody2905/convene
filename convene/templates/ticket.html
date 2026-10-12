@@ -7,7 +7,7 @@
     <div class="ticket-top">
       <p class="eyebrow">Convene ticket</p>
       <h1>{{ reg.event.title }}</h1>
-      <p>{{ reg.event.starts_at | when }}–{{ reg.event.ends_at | hm }}</p>
+      <p>{{ reg.event.starts_at | when }}–{{ reg.event.ends_at | endtime }}</p>
       <p class="muted">{{ reg.event.venue.name }}{% if reg.event.venue.address %}, {{ reg.event.venue.address }}{% endif %}</p>
     </div>
     <div class="ticket-bottom">
